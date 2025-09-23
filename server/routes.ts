@@ -764,14 +764,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reporting routes
   app.get("/api/reports/inventory", isAuthenticated, async (req, res) => {
     try {
+        console.log(req.query)
       const filters = {
-        dateFrom: req.query.dateFrom as string | undefined,
-        dateTo: req.query.dateTo as string | undefined,
-        categoryId: req.query.categoryId as string | undefined,
-        subCategoryId: req.query.subCategoryId as string | undefined,
-        articleId: req.query.articleId as string | undefined,
+          dateFrom: req.query.dateFrom as string | "",
+          dateTo: req.query.dateTo as string | "",
+          categoryId: req.query.categoryId as string | "",
+          subCategoryId: req.query.subCategoryId as string | "",
+          articleId: req.query.articleId as string | "",
       };
-
       const report = await storage.getInventoryReport(filters);
       res.json(report);
     } catch (error) {
@@ -783,13 +783,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/reports/stock-movements", isAuthenticated, async (req, res) => {
     try {
       const filters = {
-        dateFrom: req.query.dateFrom as string | undefined,
-        dateTo: req.query.dateTo as string | undefined,
-        categoryId: req.query.categoryId as string | undefined,
-        subCategoryId: req.query.subCategoryId as string | undefined,
-        costCenterId: req.query.costCenterId as string | undefined,
-        articleId: req.query.articleId as string | undefined,
-        userId: req.query.userId as string | undefined,
+          dateFrom: req.query.dateFrom as string | "",
+          dateTo: req.query.dateTo as string | "",
+          categoryId: req.query.categoryId as string | "",
+          subCategoryId: req.query.subCategoryId as string | "",
+          costCenterId: req.query.costCenterId as string | "",
+          articleId: req.query.articleId as string | "",
+          userId: req.query.userId as string | "",
         movementType: req.query.movementType as
           | "checkin"
           | "checkout"
@@ -797,7 +797,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           | "transfer"
           | undefined,
       };
-
       const report = await storage.getStockMovementReport(filters);
       res.json(report);
     } catch (error) {

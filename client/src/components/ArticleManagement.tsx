@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import {useState, useEffect, useRef} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -37,15 +36,15 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest } from "@/lib/queryClient";
 import { z } from "zod";
 import {
-  Plus,
-  Edit,
-  Trash2,
-  Search,
-  Package,
-  QrCode,
-  Barcode,
-  MapPin,
+    Plus,
+    Edit,
+    Trash2,
+    Search,
+    Package,
+    MapPin, QrCode, Camera,
 } from "lucide-react";
+import {useScanner} from "@/hooks/useScanner.ts";
+import {Badge} from "@/components/ui/badge.tsx";
 
 const articleFormSchema = insertArticleSchema
   .omit({
@@ -65,6 +64,18 @@ export default function ArticleManagement() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
+
+    // Scanner
+    const [scannerOpen, setScannerOpen] = useState(false);
+    const [scannedResult, setScannedResult] = useState<{
+        text: string;
+        format: string;
+    } | null>(null);
+    const [lastScannedCode, setLastScannedCode] = useState<string>("");
+    const [lastScannedTime, setLastScannedTime] = useState<number>(0);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const {startScanning, stopScanning, isScanning, error} = useScanner();
+
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -109,6 +120,53 @@ export default function ArticleManagement() {
   } = useQuery({
     queryKey: ["/api/articles"],
   });
+
+    const handleStartScanning = async () => {
+        if (videoRef.current) {
+            try {
+                await startScanning(videoRef.current, (result) => {
+                    const now = Date.now();
+                    // Debounce: only process if it's a different code or enough time has passed (2 seconds)
+                    if (result.text !== lastScannedCode || now - lastScannedTime > 2000) {
+                        setLastScannedCode(result.text);
+                        setLastScannedTime(now);
+                        setScannedResult(result);
+                        if (isCreateOpen) {
+                            form.setValue("articleNumber", result.text);
+                        }
+                        if (isEditOpen) {
+                            form.setValue("articleNumber", result.text)
+                        }
+                        // Automatically stop scanner after successful scan
+                        setScannerOpen(false);
+                        handleStopScanning();
+                    }
+                });
+            } catch (err) {
+                toast({
+                    title: "Scanner Fehler",
+                    description:
+                        "Konnte Kamera nicht starten. Bitte prüfen Sie die Berechtigung.",
+                    variant: "destructive",
+                });
+            }
+        } else {
+            toast({
+                title: "Scanner Fehler",
+                description: "Video-Element nicht gefunden.",
+                variant: "destructive",
+            });
+        }
+    };
+
+    const handleStopScanning = () => {
+        stopScanning();
+        if (videoRef.current && videoRef.current.srcObject) {
+            const stream = videoRef.current.srcObject as MediaStream;
+            stream.getTracks().forEach((track) => track.stop());
+            videoRef.current.srcObject = null;
+        }
+    };
 
   useEffect(() => {
     if (isArticlesError && articlesError) {
@@ -443,18 +501,15 @@ export default function ArticleManagement() {
                               >
                                 <Edit size={14} />
                               </Button>
-                              {user?.role === "admin" ||
-                                (user?.role === "projektleiter" && (
-                                  <Button
+                                <Button
                                     variant="ghost"
                                     size="sm"
                                     className="text-destructive hover:text-destructive"
                                     onClick={() => handleDelete(article)}
                                     data-testid={`button-delete-${article.id}`}
-                                  >
+                                >
                                     <Trash2 size={14} />
-                                  </Button>
-                                ))}
+                                </Button>
                             </>
                           )}
                         </div>
@@ -480,25 +535,30 @@ export default function ArticleManagement() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="articleNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Artikelnummer *</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="z.B. RM-2024-001"
-                          {...field}
-                          data-testid="input-article-number"
-                          required
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
+                  <FormField
+                      control={form.control}
+                      name="articleNumber"
+                      render={({field}) => (
+                          <FormItem>
+                              <FormLabel>Artikelnummer *</FormLabel>
+                              <div className="flex space-x-2">
+                                  <FormControl>
+                                      <Input
+                                          placeholder="z.B. RM-2024-001"
+                                          {...field}
+                                          data-testid="input-article-number"
+                                          required
+                                      />
+                                  </FormControl>
+                                  <Button type="button" variant="outline" size="icon"
+                                          onClick={() => setScannerOpen(true)}>
+                                      <QrCode size={16}/>
+                                  </Button>
+                              </div>
+                              <FormMessage/>
+                          </FormItem>
+                      )}
+                  />
                 <FormField
                   control={form.control}
                   name="name"
@@ -712,6 +772,7 @@ export default function ArticleManagement() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Artikelnummer *</FormLabel>
+                        <div className="flex space-x-2">
                       <FormControl>
                         <Input
                           placeholder="z.B. RM-2024-001"
@@ -720,6 +781,10 @@ export default function ArticleManagement() {
                           required
                         />
                       </FormControl>
+                            <Button type="button" variant="outline" size="icon" onClick={() => setScannerOpen(true)}>
+                                <QrCode size={16}/>
+                            </Button>
+                        </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -954,6 +1019,120 @@ export default function ArticleManagement() {
           </div>
         </DialogContent>
       </Dialog>
+        {/* Scanner Modal */}
+        <Dialog open={scannerOpen} onOpenChange={setScannerOpen}>
+            <DialogContent className="w-full max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Artikel Scanner</DialogTitle>
+                </DialogHeader>
+                {/* Camera View */}
+                <div className="flex justify-center">
+                    <div className="relative">
+                        {/* Video element - always rendered but conditionally shown */}
+                        <video
+                            ref={videoRef}
+                            className={`w-80 h-60 object-cover rounded-lg border-2 border-primary ${
+                                isScanning ? "block" : "hidden"
+                            }`}
+                            autoPlay
+                            playsInline
+                            data-testid="scanner-video"
+                        />
+
+                        {/* Scanner overlay - only shown when scanning */}
+                        {isScanning && (
+                            <div className="absolute inset-0 border-2 border-red-500 rounded-lg pointer-events-none">
+                                <div
+                                    className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-32 border-2 border-red-500 bg-red-500/10"/>
+                            </div>
+                        )}
+
+                        {/* Placeholder when not scanning */}
+                        {!isScanning && (
+                            <div
+                                className="w-80 h-60 bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-dashed border-primary rounded-lg flex flex-col items-center justify-center">
+                                <Camera size={48} className="text-primary mb-4"/>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                    Kamera für Scanner aktivieren
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Scanner Controls */}
+                <div className="flex justify-center space-x-4">
+                    {isScanning ? (
+                        <Button
+                            variant="outline"
+                            onClick={handleStopScanning}
+                            data-testid="button-stop-scanner"
+                            className="button-modern"
+                        >
+                            Scanner stoppen
+                        </Button>
+                    ) : (
+                        <Button
+                            onClick={handleStartScanning}
+                            data-testid="button-start-scanner-alt"
+                            className="button-modern modern-gradient"
+                        >
+                            <QrCode className="mr-2" size={16}/>
+                            Scanner starten
+                        </Button>
+                    )}
+                </div>
+                {/* Error Display */}
+                {error && (
+                    <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                        <p className="text-sm text-destructive">{error}</p>
+                    </div>
+                )}
+
+                {/* Scanned Result */}
+                {scannedResult && (
+                    <div className="p-4 bg-chart-2/10 border border-chart-2/20 rounded-lg">
+                        <h4 className="font-medium text-foreground mb-2">
+                            Gescanntes Ergebnis:
+                        </h4>
+                        <div className="flex items-center space-x-2">
+                            <Badge variant="secondary">{scannedResult.format}</Badge>
+                            <code className="text-sm bg-muted px-2 py-1 rounded">
+                                {scannedResult.text}
+                            </code>
+                        </div>
+                    </div>
+                )}
+                {/* Manual Input */}
+                <div className="space-y-2">
+                    <Label htmlFor="manual-input">Oder per USB Scanner eingeben:</Label>
+                    <div className="flex space-x-2">
+                        <Input
+                            id="manual-input"
+                            value={scannedResult?.text || ""}
+                            onChange={(e) => {
+                                if (isCreateOpen)
+                                    form.setValue("articleNumber", e.target.value);
+                                if (isEditOpen) {
+                                    editForm.setValue("articleNumber", e.target.value);
+                                }
+                            }}
+                            placeholder="Artikelnummer, Barcode oder QR-Code eingeben"
+                            data-testid="input-manual-code"
+                        />
+                    </div>
+                </div>
+                <div className="flex justify-end space--2">
+                    <Button
+                        variant="outline"
+                        onClick={() => setScannerOpen(false)}
+                        data-testid="button-cancel-scanner"
+                    >
+                        Abbrechen
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }

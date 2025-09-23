@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import {useState, useEffect, useRef} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,23 +36,23 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest } from "@/lib/queryClient";
 import { z } from "zod";
 import {
-  Plus,
-  Minus,
-  Search,
-  Package,
-  QrCode,
-  AlertTriangle,
-  TrendingUp,
-  History,
-  MapPin,
+    Plus,
+    Minus,
+    Search,
+    Package,
+    QrCode,
+    AlertTriangle,
+    TrendingUp,
+    History,
+    MapPin, Camera,
 } from "lucide-react";
+import {useScanner} from "@/hooks/useScanner.ts";
 
 const stockMovementFormSchema = insertStockMovementSchema.omit({
-    articleId: true
+    userId: true
 }).extend({
     articleNumber: z.string().min(1, "Artikelnummer ist erforderlich"),
     quantity: z.number().min(1, "Menge muss mindestens 1 sein"),
-    articleId: z.string().optional(), // Machen Sie articleId optional im Schema
 });
 
 type StockMovementFormData = z.infer<typeof stockMovementFormSchema>;
@@ -62,6 +62,16 @@ export default function InventoryManagement() {
   const [isCheckOutOpen, setIsCheckOutOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedArticle, setSelectedArticle] = useState<any>(null);
+    // Scanner
+    const [scannerOpen, setScannerOpen] = useState(false);
+    const [scannedResult, setScannedResult] = useState<{
+        text: string;
+        format: string;
+    } | null>(null);
+    const [lastScannedCode, setLastScannedCode] = useState<string>("");
+    const [lastScannedTime, setLastScannedTime] = useState<number>(0);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const {startScanning, stopScanning, isScanning, error} = useScanner();
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -97,6 +107,53 @@ export default function InventoryManagement() {
   } = useQuery({
     queryKey: ["/api/articles"],
   });
+
+    const handleStartCamera = async () => {
+        if (videoRef.current) {
+            try {
+                await startScanning(videoRef.current, (result) => {
+                    const now = Date.now();
+                    // Debounce: only process if it's a different code or enough time has passed (2 seconds)
+                    if (result.text !== lastScannedCode || now - lastScannedTime > 2000) {
+                        setLastScannedCode(result.text);
+                        setLastScannedTime(now);
+                        setScannedResult(result);
+
+                        if (isCheckInOpen)
+                            checkInForm.setValue("articleNumber", result.text)
+                        if (isCheckOutOpen)
+                            checkOutForm.setValue("articleNumber", result.text)
+
+                        // Automatically stop scanner after successful scan
+                        handleStopScanning();
+                        setScannerOpen(false);
+                    }
+                });
+            } catch (err) {
+                toast({
+                    title: "Scanner Fehler",
+                    description:
+                        "Konnte Kamera nicht starten. Bitte prüfen Sie die Berechtigung.",
+                    variant: "destructive",
+                });
+            }
+        } else {
+            toast({
+                title: "Scanner Fehler",
+                description: "Video-Element nicht gefunden.",
+                variant: "destructive",
+            });
+        }
+    };
+
+    const handleStopScanning = () => {
+        stopScanning();
+        if (videoRef.current && videoRef.current.srcObject) {
+            const stream = videoRef.current.srcObject as MediaStream;
+            stream.getTracks().forEach((track) => track.stop());
+            videoRef.current.srcObject = null;
+        }
+    };
 
   useEffect(() => {
     if (isArticlesError && articlesError) {
@@ -200,25 +257,31 @@ export default function InventoryManagement() {
   };
 
   const onCheckInSubmit = (data: StockMovementFormData) => {
-      console.log(data)
-      console.log(selectedArticle)
-      console.log("SADOUIJGFH>SDUIO")
-      if (!selectedArticle || !data.articleId) {
-      toast({
-        title: "Artikel nicht gefunden",
-        description: "Bitte geben Sie eine gültige Artikelnummer ein.",
-        variant: "destructive",
-      });
-      return;
-    }
+      try {
+          if (!selectedArticle || !data.articleId) {
+              toast({
+                  title: "Artikel nicht gefunden",
+                  description: "Bitte geben Sie eine gültige Artikelnummer ein.",
+                  variant: "destructive",
+              });
+              return;
+          }
 
-    stockMovementMutation.mutate({
-      articleId: data.articleId,
-      type: "checkin",
-      quantity: data.quantity,
-      notes: data.notes,
-    });
-  };
+          stockMovementMutation.mutate({
+              articleId: data.articleId,
+              type: "checkin",
+              quantity: data.quantity,
+              notes: data.notes,
+          });
+      } catch (error) {
+          console.error("Error during check-in:", error);
+          toast({
+              title: "Fehler beim Check-In",
+              description: "Es ist ein Fehler beim Check-In aufgetreten. Bitte versuchen Sie es erneut.",
+              variant: "destructive",
+          });
+      }
+  }
 
   const onCheckOutSubmit = (data: StockMovementFormData) => {
     if (!selectedArticle || !data.articleId) {
@@ -500,6 +563,121 @@ export default function InventoryManagement() {
         </Card>
       </div>
 
+        {/* Scanner Modal */}
+        <Dialog open={scannerOpen} onOpenChange={setScannerOpen}>
+            <DialogContent className="w-full max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Artikel Scanner</DialogTitle>
+                </DialogHeader>
+                {/* Camera View */}
+                <div className="flex justify-center">
+                    <div className="relative">
+                        {/* Video element - always rendered but conditionally shown */}
+                        <video
+                            ref={videoRef}
+                            className={`w-80 h-60 object-cover rounded-lg border-2 border-primary ${
+                                isScanning ? "block" : "hidden"
+                            }`}
+                            autoPlay
+                            playsInline
+                            data-testid="scanner-video"
+                        />
+
+                        {/* Scanner overlay - only shown when scanning */}
+                        {isScanning && (
+                            <div className="absolute inset-0 border-2 border-red-500 rounded-lg pointer-events-none">
+                                <div
+                                    className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-32 border-2 border-red-500 bg-red-500/10"/>
+                            </div>
+                        )}
+
+                        {/* Placeholder when not scanning */}
+                        {!isScanning && (
+                            <div
+                                className="w-80 h-60 bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-dashed border-primary rounded-lg flex flex-col items-center justify-center">
+                                <Camera size={48} className="text-primary mb-4"/>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                    Kamera für Scanner aktivieren
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Scanner Controls */}
+                <div className="flex justify-center space-x-4">
+                    {isScanning ? (
+                        <Button
+                            variant="outline"
+                            onClick={handleStopScanning}
+                            data-testid="button-stop-scanner"
+                            className="button-modern"
+                        >
+                            Scanner stoppen
+                        </Button>
+                    ) : (
+                        <Button
+                            onClick={handleStartCamera}
+                            data-testid="button-start-scanner-alt"
+                            className="button-modern modern-gradient"
+                        >
+                            <QrCode className="mr-2" size={16}/>
+                            Scanner starten
+                        </Button>
+                    )}
+                </div>
+                {/* Error Display */}
+                {error && (
+                    <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                        <p className="text-sm text-destructive">{error}</p>
+                    </div>
+                )}
+
+                {/* Scanned Result */}
+                {scannedResult && (
+                    <div className="p-4 bg-chart-2/10 border border-chart-2/20 rounded-lg">
+                        <h4 className="font-medium text-foreground mb-2">
+                            Gescanntes Ergebnis:
+                        </h4>
+                        <div className="flex items-center space-x-2">
+                            <Badge variant="secondary">{scannedResult.format}</Badge>
+                            <code className="text-sm bg-muted px-2 py-1 rounded">
+                                {scannedResult.text}
+                            </code>
+                        </div>
+                    </div>
+                )}
+                {/* Manual Input */}
+                <div className="space-y-2">
+                    <Label htmlFor="manual-input">Oder per USB Scanner eingeben:</Label>
+                    <div className="flex space-x-2">
+                        <Input
+                            id="manual-input"
+                            value={scannedResult?.text || ""}
+                            onChange={(e) => {
+                                if (isCheckInOpen)
+                                    checkInForm.setValue("articleNumber", e.target.value);
+                                if (isCheckOutOpen) {
+                                    checkOutForm.setValue("articleNumber", e.target.value);
+                                }
+                            }}
+                            placeholder="Artikelnummer, Barcode oder QR-Code eingeben"
+                            data-testid="input-manual-code"
+                        />
+                    </div>
+                </div>
+                <div className="flex justify-end space--2">
+                    <Button
+                        variant="outline"
+                        onClick={() => setScannerOpen(false)}
+                        data-testid="button-cancel-scanner"
+                    >
+                        Abbrechen
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+
       {/* Check In Dialog */}
       <Dialog open={isCheckInOpen} onOpenChange={setIsCheckInOpen}>
         <DialogContent className="max-w-lg">
@@ -511,11 +689,41 @@ export default function InventoryManagement() {
           </DialogHeader>
           <Form {...checkInForm}>
             <form
-              onSubmit={(e) => {
-                  console.log(e)
-                  checkInForm.handleSubmit(onCheckInSubmit)(e);
-              }}
-              className="space-y-4"
+                onSubmit={async (e) => {
+                    // Prevent default just to be explicit (handleSubmit macht das normalerweise)
+                    e.preventDefault();
+
+                    // 1) Log aktuelle Formwerte
+                    console.log("DEBUG - before submit - form values:", checkInForm.getValues());
+
+                    // 2) explizit triggern, damit wir Validierungsfehler sehen
+                    const valid = await checkInForm.trigger();
+                    console.log("DEBUG - validation result:", valid);
+
+                    // 3) Falls ungültig: zeige errors in der Konsole
+                    if (!valid) {
+                        console.warn("DEBUG - validation errors:", checkInForm.formState.errors);
+                        toast({
+                            title: "Validierungsfehler",
+                            description: "Bitte prüfen Sie die Eingaben im Formular.",
+                            variant: "destructive",
+                        });
+                        return;
+                    }
+
+                    // 4) Normalen submit durch handleSubmit ausführen (sollte jetzt onCheckInSubmit aufrufen)
+                    try {
+                        await checkInForm.handleSubmit(onCheckInSubmit)();
+                    } catch (error) {
+                        console.error("Error during check-in:", error);
+                        toast({
+                            title: "Fehler beim Check-In",
+                            description: "Es ist ein Fehler beim Check-In aufgetreten. Bitte versuchen Sie es erneut.",
+                            variant: "destructive",
+                        });
+                    }
+                }}
+                className="space-y-4"
             >
               <FormField
                 control={checkInForm.control}
@@ -537,7 +745,7 @@ export default function InventoryManagement() {
                           data-testid="input-checkin-article-number"
                         />
                       </FormControl>
-                      <Button type="button" variant="outline" size="icon">
+                        <Button type="button" variant="outline" size="icon" onClick={() => setScannerOpen(true)}>
                         <QrCode size={16} />
                       </Button>
                     </div>
@@ -665,9 +873,9 @@ export default function InventoryManagement() {
                           data-testid="input-checkout-article-number"
                         />
                       </FormControl>
-                      <Button type="button" variant="outline" size="icon">
-                        <QrCode size={16} />
-                      </Button>
+                        <Button type="button" variant="outline" size="icon" onClick={() => setScannerOpen(true)}>
+                            <QrCode size={16}/>
+                        </Button>
                     </div>
                     <FormMessage />
                   </FormItem>

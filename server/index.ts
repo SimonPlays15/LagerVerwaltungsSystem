@@ -18,7 +18,7 @@ async function ensureAdminUser() {
           if(devAdminAccountExists)
               await storage.deleteUser("development_admin");
       }
-    return; // Never create default admin in production
+      return; // Never create default admin in production
   }
   
   try {
@@ -68,6 +68,20 @@ async function ensureDefaultCategories(){
                 categoryId: category.id,
             })
         }
+    }
+}
+
+// Ensure default Cost Center
+async function ensureDefaultCostCenter() {
+    const {storage} = await import("./storage");
+    const costCenters = await storage.getCostCenters();
+    if (costCenters.length === 0) {
+        await storage.createCostCenter({
+            name: "Default Cost Center",
+            description: "Default Cost Center",
+            code: "DEF-CHANGE-ME0123",
+            isActive: true
+        });
     }
 }
 
@@ -125,6 +139,7 @@ app.use((req, res, next) => {
 (async () => {
   await ensureAdminUser();
   await ensureDefaultCategories();
+    await ensureDefaultCostCenter();
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

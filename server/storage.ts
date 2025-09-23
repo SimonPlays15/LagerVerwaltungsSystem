@@ -36,7 +36,7 @@ import {
     users,
 } from "@shared/schema";
 import {db} from "./db";
-import {and, asc, desc, eq, like, lt, sql} from "drizzle-orm";
+import {and, asc, desc, eq, like, lt, sql, gte, lte, sum, count} from "drizzle-orm";
 
 export class DependencyConflictError extends Error {
   public code = "DEPENDENCY_CONFLICT";
@@ -922,9 +922,11 @@ export class DatabaseStorage implements IStorage {
   }> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
     const [totalArticles] = await db
-      .select({ count: sql<number>`count(*)` })
+        .select({
+            count: sql<number>`count
+                (*)`
+        })
       .from(articles);
 
     const [lowStockCount] = await db
@@ -936,7 +938,7 @@ export class DatabaseStorage implements IStorage {
     const [todayMovements] = await db
       .select({ count: sql<number>`count(*)` })
       .from(stockMovements)
-      .where(sql`${stockMovements.createdAt} >= ${today}`);
+        .where(gte(stockMovements.createdAt, today));
 
     const [activeCostCenters] = await db
       .select({ count: sql<number>`count(*)` })
@@ -1076,16 +1078,16 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(stockMovements.userId, users.id));
 
     // Apply filters
-    const conditions = [];
+      const conditions: any[] = [];
     if (filters.dateFrom) {
       conditions.push(
-        sql`${stockMovements.createdAt} >= ${new Date(filters.dateFrom)}`,
+          gte(stockMovements.createdAt, new Date(filters.dateFrom)),
       );
     }
     if (filters.dateTo) {
       const endDate = new Date(filters.dateTo);
       endDate.setHours(23, 59, 59, 999);
-      conditions.push(sql`${stockMovements.createdAt} <= ${endDate}`);
+        conditions.push(lte(stockMovements.createdAt, endDate));
     }
     if (filters.categoryId) {
       conditions.push(eq(articles.categoryId, filters.categoryId));
@@ -1111,7 +1113,6 @@ export class DatabaseStorage implements IStorage {
     }
 
     const results = await query.orderBy(desc(stockMovements.createdAt));
-
     return results.map((row) => ({
       ...row,
       categoryName: row.categoryName,

@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import {ReactNode, useEffect, useState} from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,7 +25,6 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user } = useAuth();
-
   const handleLogout = async () => {
     try {
       await apiRequest("POST", "/api/logout", {});
@@ -174,10 +173,6 @@ export default function Layout({ children }: LayoutProps) {
               <h2 className="text-xl font-semibold text-foreground">
                 {navigation.find((item) => item.current)?.name || "Dashboard"}
               </h2>
-              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                <span className="px-2 py-1 bg-muted rounded-md">Live</span>
-                <span>Letzte Aktualisierung: vor 2 Min.</span>
-              </div>
             </div>
             <div className="flex items-center space-x-3">
               <Button
@@ -185,7 +180,7 @@ export default function Layout({ children }: LayoutProps) {
                 size="sm"
                 className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
                 onClick={() => {
-                  handleLogout();
+                    handleLogout().then(r => console.log(r));
                 }}
                 data-testid="button-logout"
               >

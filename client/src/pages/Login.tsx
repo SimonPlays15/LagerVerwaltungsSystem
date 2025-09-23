@@ -71,7 +71,7 @@ export default function Login() {
             <Warehouse className="text-primary-foreground" size={32} />
           </div>
           <h1 className="text-2xl font-bold text-foreground">
-            LagerVerwaltung Pro
+              Lager Verwaltung
           </h1>
           <p className="text-muted-foreground">Anmelden um fortzufahren</p>
         </div>

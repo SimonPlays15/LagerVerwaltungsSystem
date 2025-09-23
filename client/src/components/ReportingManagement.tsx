@@ -22,7 +22,10 @@ import type {
 
 export default function ReportingManagement() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("inventory");
+    let [activeTab, setActiveTab] = useState("inventory");
+    if (window.location.search && window.location.search.includes("?activeTab=stockmovements")) {
+        [activeTab, setActiveTab] = useState("movements");
+    }
   const [filters, setFilters] = useState<ReportFilter>({});
   const [isExporting, setIsExporting] = useState(false);
 
@@ -37,19 +40,29 @@ export default function ReportingManagement() {
 
   // Fetch reports based on active tab and filters
   const { data: inventoryReport, isLoading: inventoryLoading } = useQuery<InventoryReport[]>({
-    queryKey: ["/api/reports/inventory", filters],
+      queryKey: ["/api/reports/inventory", parseFilterAsText(filters)],
     enabled: activeTab === "inventory",
   });
 
   const { data: movementReport, isLoading: movementLoading } = useQuery<StockMovementReport[]>({
-    queryKey: ["/api/reports/stock-movements", filters],
+      queryKey: ["/api/reports/stock-movements", parseFilterAsText(filters)],
     enabled: activeTab === "movements",
   });
 
   const { data: categoryReport, isLoading: categoryLoading } = useQuery<CategoryReport[]>({
-    queryKey: ["/api/reports/categories"],
+      queryKey: ["/api/reports/categories", parseFilterAsText(filters)],
     enabled: activeTab === "categories",
   });
+
+    function parseFilterAsText(object: ReportFilter | InventoryReport | StockMovementReport | CategoryReport) {
+        let getQuery = "?";
+        Object.entries(object).forEach(([key, value]) => {
+            if (value) {
+                getQuery += `${key}=${value}&`;
+            }
+        });
+        return getQuery;
+    }
 
   const handleFilterChange = (key: keyof ReportFilter, value: string) => {
     setFilters(prev => ({
@@ -74,7 +87,7 @@ export default function ReportingManagement() {
 
       if (format === 'pdf') {
         // Open HTML report in new tab for printing
-        window.open(url, '_blank');
+          window.open(url, '_parent');
         toast({
           title: "Druckansicht geöffnet",
           description: `Die Druckansicht wurde in einem neuen Tab geöffnet. Verwenden Sie Strg+P zum Drucken.`,
@@ -427,7 +440,6 @@ export default function ReportingManagement() {
       )}
     </div>
   );
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">

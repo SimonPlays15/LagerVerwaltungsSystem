@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
-import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import ChangePassword from "@/pages/ChangePassword";
 import Home from "@/pages/Home";
@@ -32,9 +31,9 @@ function Router() {
     <Switch>
       {isLoading || !isAuthenticated ? (
         <>
+            <Route path="/" component={Login}/>
           <Route path="/login" component={Login} />
           <Route path="/register" component={firstLaunch ? Register : Login} />
-          <Route path="/" component={Landing} />
         </>
       ) : forcePasswordChange ? (
         // Force password change flow–only show change password page
