@@ -5,9 +5,11 @@ manages articles, categories/sub‑categories, inventory levels, stock movements
 centers, inventory counting sessions, users and session‑based authentication. Reporting and barcode/QR scanning are
 included.
 
-> Note: Some domain labels are in German (e.g., Kategorien, Kostenstellen). The codebase uses Drizzle ORM with
+> [!IMPORTANT]
+> Some domain labels are in German (e.g., Kategorien, Kostenstellen). The codebase uses Drizzle ORM with
 > PostgreSQL and stores sessions in the database.
 
+> [!NOTE]
 > Note: This is a personal project and not affiliated with any company.
 
 ## Demo
@@ -88,11 +90,11 @@ NODE_ENV=development
 ## Setup
 
 1. Install dependencies
-    - npm install
+    - `npm install`
 2. Configure environment
-    - Create .env in the repo root with the variables above
+    - Create `.env` in the repo root with the variables above
 3. Initialize database schema
-    - npm run db:push
+    - `npm run db:push`
     - This applies the schema from shared/schema.ts to DATABASE_URL and creates required tables (including sessions).
 
 ## Running
@@ -116,7 +118,6 @@ Production:
 - start — node dist/index.js (serve API + static client)
 - check — tsc type checking
 - db:push — drizzle-kit push (apply schema to the database)
-- db:reset — development-only helper to truncate all tables except drizzle_migrations
 
 ## Tests
 
