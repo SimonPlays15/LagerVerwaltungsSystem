@@ -593,17 +593,15 @@ export default function CategoryManagement() {
                           >
                             <Edit size={14} />
                           </Button>
-                          {user?.role === "admin" ||
-                            (user?.role === "projektleiter" && (
-                              <Button
+                            <Button
                                 variant="ghost"
                                 size="sm"
+                                className={"hover:bg-red-500 hover:text-white"}
                                 onClick={() => openCategoryDelete(category)}
                                 data-testid={`button-delete-category-${category.id}`}
-                              >
+                            >
                                 <Trash2 size={14} />
-                              </Button>
-                            ))}
+                            </Button>
                         </div>
                       )}
                     </div>
@@ -673,19 +671,17 @@ export default function CategoryManagement() {
                                     >
                                       <Edit size={12} />
                                     </Button>
-                                    {user?.role === "admin" ||
-                                      (user?.role === "projektleiter" && (
-                                        <Button
+                                      <Button
                                           variant="ghost"
+                                          className={"hover:bg-red-500 hover:text-white"}
                                           size="sm"
                                           onClick={() =>
-                                            openSubCategoryDelete(subCategory)
+                                              openSubCategoryDelete(subCategory)
                                           }
                                           data-testid={`button-delete-subcategory-${subCategory.id}`}
-                                        >
+                                      >
                                           <Trash2 size={12} />
-                                        </Button>
-                                      ))}
+                                      </Button>
                                   </div>
                                 )}
                               </div>

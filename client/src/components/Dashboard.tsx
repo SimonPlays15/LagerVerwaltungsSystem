@@ -43,8 +43,6 @@ import {useForm} from "react-hook-form";
 import {apiRequest} from "@/lib/queryClient.ts";
 import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage} from "@/components/ui/form.tsx";
 
-const [location] = useLocation();
-
 const stockMovementFormSchema = insertStockMovementSchema.omit({
     userId: true
 }).extend({
